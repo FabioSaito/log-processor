@@ -1,98 +1,381 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# Log Parser FPS - API
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+API para processar logs de partidas de FPS, calcular estatísticas de jogadores, partidas e eventos.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+---
 
-## Description
+## Descrição
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+A API recebe arquivos de log contendo informações de partidas, processa os eventos (inicio/fim de partida, abates, etc), persiste os dados e expõe endpoints para consulta de partidas, jogadores e eventos.
 
-## Project setup
+---
+
+
+## Compilar e rodar
 
 ```bash
-$ npm install
+npm install
+npm run start:dev
 ```
 
-## Compile and run the project
+Acesse os endpoints em `http://localhost:3000`.
 
-```bash
-# development
-$ npm run start
+---
 
-# watch mode
-$ npm run start:dev
 
-# production mode
-$ npm run start:prod
-```
-
-## Run tests
-
+## Rodar testes
 ```bash
 # unit tests
-$ npm run test
+$  npm  run  test
 
 # e2e tests
-$ npm run test:e2e
+$  npm  run  test:e2e
 
 # test coverage
-$ npm run test:cov
+$  npm  run  test:cov
 ```
 
-## Deployment
+## Arquitetura
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+O projeto segue princípios de arquitetura limpa e DDD (Domain-Driven Design), utilizando o framework [NestJS](https://nestjs.com/):
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+-  **Camada de Application/Controllers**: Recebe as requisições HTTP e delega para os serviços de domínio.
+
+-  **Camada de Domain/Services**: Contém a lógica de negócio, como processamento de kills, criação de partidas, estatísticas, etc.
+
+-  **Entities**: Representam as tabelas do banco de dados (Match, Player, Event, PlayerMatchStats, Award).
+
+-  **DTOs**: Objetos de transferência de dados para validação e tipagem das requisições. (Nesse projeto, ele é usado também pra comunicação entre serviços, para garantir consistência dos dados a serem manipulados)
+
+-  **Repositórios TypeORM**: Camada de abstração para persistência e consulta dos dados.
+
+-  **Banco de dados**: SQLite
+---
+
+### Decisões técnicas e de design
+
+-  **TypeORM + SQLite**: Escolhido pela simplicidade para prototipação e testes locais.
+
+-  **Separação de camadas**: Controllers apenas recebem requisições e delegam para os serviços, mantendo lógica de negócio isolada.
+
+-  **Validação com class-validator**: Todos os DTOs são validados automaticamente.
+
+-  **Upload de logs em memória**: O arquivo é processado diretamente sem ser salvo em disco.
+
+- **Persistência**: Os logs são convertidos para a tabela `events` para consistencia e padronização dos dados.
+
+-  **Suporte a múltiplas partidas por log**: O parser reconhece e processa vários blocos de partidas em um único upload.
+
+-  **Extensível para regras de negócio**: Fácil adicionar novas regras (awards, streaks, etc).
+
+**obs:**
+-  **Enums como string no banco**: Para compatibilidade com SQLite, enums são salvos como `varchar`.
+---
+
+## Entidades e Relacionamentos
+O sistema utiliza as seguintes entidades:
+
+### Match
+- Representa uma partida.
+- **Campos:** `id`, `matchNumber`, `startTime`, `endTime`, `createdAt`, `updatedAt`
+- **Relacionamentos:**
+	- Possui vários `Event` (OneToMany)
+	- Possui vários `PlayerMatchStats` (OneToMany)
+	- Possui vários `Award` (OneToMany)
+
+### Player
+- Representa um jogador.
+- **Campos:** `id`, `name`, `createdAt`, `updatedAt`
+- **Relacionamentos:**
+	- Pode ser killer ou victim em vários `Event` (OneToMany)
+	- Possui vários `PlayerMatchStats` (OneToMany)
+	- Possui vários `Award` (OneToMany)
+
+### Event
+- Representa um evento de jogo (kill, morte, etc).
+- **Campos:** `id`, `occurredAt`, `weapon`, `createdAt`, `updatedAt`
+- **Relacionamentos:**
+	- Relacionado a um `Match` (ManyToOne)
+	- Killer: relacionado a um `Player` (ManyToOne)
+	- Victim: relacionado a um `Player` (ManyToOne)
+
+### PlayerMatchStats
+- Estatísticas de um jogador em uma partida específica.
+- **Campos:** `id`, `team`, `kills`, `deaths`, `createdAt`, `updatedAt`
+- **Relacionamentos:**
+	- Relacionado a um `Player` (ManyToOne)
+	- Relacionado a um `Match` (ManyToOne)
+
+### Award
+- Prêmios concedidos a jogadores por conquistas especiais.
+- **Campos:** `id`, `type`, `createdAt`, `updatedAt`
+- **Relacionamentos:**
+	- Relacionado a um `Player` (ManyToOne)
+	- Relacionado a um `Match` (ManyToOne)
+
+---
+
+## Endpoints
+### Upload de Log
+-  **POST /matches/upload**
+
+  Upload de um arquivo de log(.txt) para processamento.
+
+  Corpo: multipart/form-data (campo `file`)
+
+- Exemplo de Resposta:
+
+```json
+
+{
+  "message": "Log file processed successfully"
+}
+
+```
+
+-  **Exemplo de uso (curl):**
 
 ```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
+
+curl -F 'file=@log.txt' http://localhost:3000/matches/upload
+
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+### Listar Eventos
+-  **GET /matches/events**
 
-## Resources
+  Lista todos os eventos (kills, mortes) processados.
 
-Check out a few resources that may come in handy when working with NestJS:
+- Exemplo de Resposta:
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+```json
+[
+    {
+        "id": 1,
+        "match": {
+            "id": 1,
+            "matchNumber": 11348965,
+            "startTime": "2019-04-23T18:34:22.000Z",
+            "endTime": "2019-04-23T18:39:22.000Z",
+            "createdAt": "2025-06-18T18:01:35.000Z",
+            "updatedAt": "2025-06-18T18:01:35.000Z"
+        },
+        "occurredAt": "2019-04-23T18:36:04.000Z",
+        "killer": {
+            "id": 1,
+            "name": "Roman",
+            "createdAt": "2025-06-18T18:01:35.000Z",
+            "updatedAt": "2025-06-18T18:01:35.000Z"
+        },
+        "victim": {
+            "id": 2,
+            "name": "Nick",
+            "createdAt": "2025-06-18T18:01:35.000Z",
+            "updatedAt": "2025-06-18T18:01:35.000Z"
+        },
+        "weapon": "M16",
+        "createdAt": "2025-06-18T18:01:35.000Z",
+        "updatedAt": "2025-06-18T18:01:35.000Z"
+    },
+    {
+        "id": 2,
+        "match": {
+            "id": 1,
+            "matchNumber": 11348965,
+            "startTime": "2019-04-23T18:34:22.000Z",
+            "endTime": "2019-04-23T18:39:22.000Z",
+            "createdAt": "2025-06-18T18:01:35.000Z",
+            "updatedAt": "2025-06-18T18:01:35.000Z"
+        },
+        "occurredAt": "2019-04-23T18:36:33.000Z",
+        "killer": {
+            "id": 3,
+            "name": "<WORLD>",
+            "createdAt": "2025-06-18T18:01:35.000Z",
+            "updatedAt": "2025-06-18T18:01:35.000Z"
+        },
+        "victim": {
+            "id": 2,
+            "name": "Nick",
+            "createdAt": "2025-06-18T18:01:35.000Z",
+            "updatedAt": "2025-06-18T18:01:35.000Z"
+        },
+        "weapon": "DROWN",
+        "createdAt": "2025-06-18T18:01:35.000Z",
+        "updatedAt": "2025-06-18T18:01:35.000Z"
+    }
+]
 
-## Support
+```
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+### Listar Partidas
+-  **GET /matches**
 
-## Stay in touch
+  Lista todas as partidas registradas.
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+- Exemplo de Resposta:
 
-## License
+```json
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+[
+    {
+        "id": 1,
+        "matchNumber": 11348965,
+        "startTime": "2019-04-23T18:34:22.000Z",
+        "endTime": "2019-04-23T18:39:22.000Z",
+        "createdAt": "2025-06-18T18:01:35.000Z",
+        "updatedAt": "2025-06-18T18:01:35.000Z"
+    }
+]
+
+```
+
+-  **GET /matches/:matchNumber**
+- Detalha uma partida específica, incluindo:
+	- id,
+	- matchNumber,
+	- startTime,
+	- endTime
+
+- players:
+	- name,
+	- team,
+	- kills,
+	- deaths,
+	- score
+
+- Exemplo de Resposta:
+
+```json
+{
+    "id": 1,
+    "matchNumber": 11348965,
+    "startTime": "2019-04-23T18:34:22.000Z",
+    "endTime": "2019-04-23T18:39:22.000Z",
+    "players": [
+        {
+            "name": "Roman",
+            "team": "TERRORISTS",
+            "kills": 1,
+            "deaths": 0,
+            "score": 1
+        },
+        {
+            "name": "Nick",
+            "team": "COUNTER_TERRORISTS",
+            "kills": 0,
+            "deaths": 2,
+            "score": -2
+        },
+        {
+            "name": "<WORLD>",
+            "team": null,
+            "kills": 0,
+            "deaths": 0,
+            "score": 0
+        }
+    ]
+}
+```
+
+
+
+### Estatísticas de Jogadores em Partidas
+-  **GET /player-match-stats**
+
+  Lista todas as estatísticas de um determinado jogador em uma determinada partida (PlayerMatchStats).
+
+- Exemplo de Resposta:
+
+```json
+[
+    {
+        "id": 1,
+        "player": {
+            "id": 1,
+            "name": "Roman",
+            "createdAt": "2025-06-18T18:01:35.000Z",
+            "updatedAt": "2025-06-18T18:01:35.000Z"
+        },
+        "match": {
+            "id": 1,
+            "matchNumber": 11348965,
+            "startTime": "2019-04-23T18:34:22.000Z",
+            "endTime": "2019-04-23T18:39:22.000Z",
+            "createdAt": "2025-06-18T18:01:35.000Z",
+            "updatedAt": "2025-06-18T18:01:35.000Z"
+        },
+        "team": "TERRORISTS",
+        "kills": 1,
+        "deaths": 0,
+        "createdAt": "2025-06-18T18:01:35.000Z",
+        "updatedAt": "2025-06-18T18:01:35.000Z"
+    },
+    {
+        "id": 2,
+        "player": {
+            "id": 2,
+            "name": "Nick",
+            "createdAt": "2025-06-18T18:01:35.000Z",
+            "updatedAt": "2025-06-18T18:01:35.000Z"
+        },
+        "match": {
+            "id": 1,
+            "matchNumber": 11348965,
+            "startTime": "2019-04-23T18:34:22.000Z",
+            "endTime": "2019-04-23T18:39:22.000Z",
+            "createdAt": "2025-06-18T18:01:35.000Z",
+            "updatedAt": "2025-06-18T18:01:35.000Z"
+        },
+        "team": "COUNTER_TERRORISTS",
+        "kills": 0,
+        "deaths": 2,
+        "createdAt": "2025-06-18T18:01:35.000Z",
+        "updatedAt": "2025-06-18T18:01:35.000Z"
+    },
+    {
+        "id": 3,
+        "player": {
+            "id": 3,
+            "name": "<WORLD>",
+            "createdAt": "2025-06-18T18:01:35.000Z",
+            "updatedAt": "2025-06-18T18:01:35.000Z"
+        },
+        "match": {
+            "id": 1,
+            "matchNumber": 11348965,
+            "startTime": "2019-04-23T18:34:22.000Z",
+            "endTime": "2019-04-23T18:39:22.000Z",
+            "createdAt": "2025-06-18T18:01:35.000Z",
+            "updatedAt": "2025-06-18T18:01:35.000Z"
+        },
+        "team": null,
+        "kills": 0,
+        "deaths": 0,
+        "createdAt": "2025-06-18T18:01:35.000Z",
+        "updatedAt": "2025-06-18T18:01:35.000Z"
+    }
+]
+```
+
+---
+
+## Exemplo de Log Aceito
+
+```json
+23/04/2019 15:34:22 - New match 11348965 has started
+23/04/2019 15:34:22 - TERRORISTS: [Roman], COUNTER_TERRORISTS: [Nick]
+23/04/2019 15:36:04 - Roman killed Nick using M16
+23/04/2019 15:36:33 - <WORLD> killed Nick by DROWN
+23/04/2019 15:39:22 - Match 11348965 has ended
+```
+
+# Melhorias
+
+- Mudança dos ids para uuid a fim de:
+	- evitar vazamento de informações por ID sequencial.
+	- gerar IDs client-side ou em serviços distribuídos.
+	- replicação ou sharding no futuro.
+
+- Implementar sistema de pontuacao com kda para gerar um score mais preciso.
+- Transformar as `weapons` em uma tabela ao inves de um enum dentro do código
