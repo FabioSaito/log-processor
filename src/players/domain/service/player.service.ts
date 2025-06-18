@@ -1,6 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
-import { Player } from "src/players/player.entity";
+import { Player } from "../../player.entity";
 import { Repository } from "typeorm";
 import { PlayerDto } from "../application/dto/player.dto";
 

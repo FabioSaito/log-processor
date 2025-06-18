@@ -1,11 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { PlayerMatchStats, teamEnum } from 'src/player-match-stats/player-match-stats.entity';
+import { PlayerMatchStats, teamEnum } from '../../player-match-stats.entity';
 import { PlayerMatchStatsDto } from '../application/dto/player-match-stats.dto';
 import { CreateBulkPlayerMatchStatsDto } from '../application/dto/create-bulk-player-match-stats.dto';
-import { PlayerService } from 'src/players/domain/service/player.service';
-import { MatchService } from 'src/matches/domain/services/match.service';
+import { PlayerService } from '../../../players/domain/service/player.service';
+import { MatchService } from '../../../matches/domain/services/match.service';
 
 @Injectable()
 export class PlayerMatchStatsService {

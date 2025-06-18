@@ -2,9 +2,9 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { EventDto } from '../application/dto/event.dto';
-import { Event } from 'src/events/event.entity';
-import { MatchService } from 'src/matches/domain/services/match.service';
-import { PlayerService } from 'src/players/domain/service/player.service';
+import { Event } from '../../event.entity';
+import { MatchService } from '../../../matches/domain/services/match.service';
+import { PlayerService } from '../../../players/domain/service/player.service';
 
 @Injectable()
 export class EventService {
